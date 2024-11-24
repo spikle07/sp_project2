@@ -1,22 +1,17 @@
-// #include <stdio.h>
-// #include <stdlib.h>
-// #include <sys/time.h>
-// #include "mapreduce.h"
-// #include "common.h"
-
-// add your code here ...
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/time.h>
+#include "mapreduce.h"
+#include "common.h"
 #include <string.h>
 #include <unistd.h>
-#include <sys/time.h>
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include "mapreduce.h"
-#include "common.h"
 
+
+// add your code here ...
 // Helper function to find the next newline character
 static off_t find_next_newline(int fd, off_t start_pos, off_t max_pos) {
     char buffer[1024];
@@ -92,7 +87,6 @@ void mapreduce(MAPREDUCE_SPEC * spec, MAPREDUCE_RESULT * result)
     gettimeofday(&start, NULL);
 
     // add your code here ...
-    // Open and get size of input file
     input_fd = open(spec->input_data_filepath, O_RDONLY);
     if (input_fd < 0) {
         EXIT_ERROR(ERROR, "Cannot open input file: %s\n", spec->input_data_filepath);
@@ -105,10 +99,8 @@ void mapreduce(MAPREDUCE_SPEC * spec, MAPREDUCE_RESULT * result)
     }
     lseek(input_fd, 0, SEEK_SET);
     
-    // Adjust split_num if necessary
     int actual_split_num = (file_size < spec->split_num) ? 1 : spec->split_num;
     
-    // Allocate memory
     split_starts = malloc(actual_split_num * sizeof(off_t));
     split_sizes = malloc(actual_split_num * sizeof(off_t));
     intermediate_fds = malloc(actual_split_num * sizeof(int));
@@ -121,12 +113,9 @@ void mapreduce(MAPREDUCE_SPEC * spec, MAPREDUCE_RESULT * result)
         EXIT_ERROR(ERROR, "Memory allocation failed\n");
     }
     
-    // Calculate split positions
     get_split_positions(input_fd, file_size, actual_split_num, split_starts, split_sizes);
     
-    // Create map workers
     for (int i = 0; i < actual_split_num; i++) {
-        // Create intermediate file
         char intermediate_filename[32];
         snprintf(intermediate_filename, sizeof(intermediate_filename), "mr-%d.itm", i);
         
@@ -140,37 +129,31 @@ void mapreduce(MAPREDUCE_SPEC * spec, MAPREDUCE_RESULT * result)
             EXIT_ERROR(ERROR, "Fork failed for map worker %d\n", i);
         } 
         else if (pid == 0) {  // Child process (map worker)
-            // Open a new file descriptor for this worker
             int worker_fd = open(spec->input_data_filepath, O_RDONLY);
             if (worker_fd < 0) {
                 _EXIT_ERROR(ERROR, "Worker cannot open input file\n");
             }
             
-            // Close parent's file descriptors
             close(input_fd);
             for (int j = 0; j < i; j++) {
                 close(intermediate_fds[j]);
             }
             
-            // Setup split info
             DATA_SPLIT split;
             split.fd = worker_fd;
             split.size = split_sizes[i];
             split.usr_data = spec->usr_data;
             
-            // Seek to the correct position
             if (lseek(worker_fd, split_starts[i], SEEK_SET) < 0) {
                 _EXIT_ERROR(ERROR, "Worker seek failed\n");
             }
             
-            // Run map function
             int ret = spec->map_func(&split, intermediate_fds[i]);
             
-            // Cleanup
             close(worker_fd);
             close(intermediate_fds[i]);
             
-            _exit(ret == SUCCESS ? SUCCESS : ERROR);
+            _exit(ret == 0 ? 0 : 1);  // Changed: Convert -1 to exit status 1
         }
         else {  // Parent process
             result->map_worker_pid[i] = pid;
@@ -181,7 +164,7 @@ void mapreduce(MAPREDUCE_SPEC * spec, MAPREDUCE_RESULT * result)
     for (int i = 0; i < actual_split_num; i++) {
         int status;
         waitpid(result->map_worker_pid[i], &status, 0);
-        if (!WIFEXITED(status) || WEXITSTATUS(status) != SUCCESS) {
+        if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {  // Changed: Check for 0 instead of SUCCESS
             EXIT_ERROR(ERROR, "Map worker %d failed\n", i);
         }
         close(intermediate_fds[i]);
@@ -198,7 +181,6 @@ void mapreduce(MAPREDUCE_SPEC * spec, MAPREDUCE_RESULT * result)
             _EXIT_ERROR(ERROR, "Cannot create result file\n");
         }
         
-        // Open intermediate files for reading
         for (int i = 0; i < actual_split_num; i++) {
             char intermediate_filename[32];
             snprintf(intermediate_filename, sizeof(intermediate_filename), "mr-%d.itm", i);
@@ -208,28 +190,25 @@ void mapreduce(MAPREDUCE_SPEC * spec, MAPREDUCE_RESULT * result)
             }
         }
         
-        // Run reduce function
         int ret = spec->reduce_func(intermediate_fds, actual_split_num, result_fd);
         
-        // Cleanup
         close(result_fd);
         for (int i = 0; i < actual_split_num; i++) {
             close(intermediate_fds[i]);
         }
         
-        _exit(ret == SUCCESS ? SUCCESS : ERROR);
+        _exit(ret == 0 ? 0 : 1);  // Changed: Convert -1 to exit status 1
     }
     else {  // Parent process
         result->reduce_worker_pid = reduce_pid;
         
         int status;
         waitpid(reduce_pid, &status, 0);
-        if (!WIFEXITED(status) || WEXITSTATUS(status) != SUCCESS) {
+        if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {  // Changed: Check for 0 instead of SUCCESS
             EXIT_ERROR(ERROR, "Reduce worker failed\n");
         }
     }
     
-    // Final cleanup
     close(input_fd);
     free(split_starts);
     free(split_sizes);

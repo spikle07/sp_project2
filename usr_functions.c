@@ -20,7 +20,7 @@
 #define BUFFER_SIZE 4096
 
 // Helper function to check if a character is a word boundary
-static int is_word_boundary(char c) {
+static int find_word_boundary(char c) {
     return c == ' ' || c == '\t' || c == '\n' || c == '\r' || 
            c == '.' || c == ',' || c == ';' || c == '!' || 
            c == '?' || c == '"' || c == '\'' || c == '(' || 
@@ -29,14 +29,14 @@ static int is_word_boundary(char c) {
 }
 
 // Helper function to find exact word match
-static int has_exact_word(const char* line, const char* word) {
+static int find_word(const char* line, const char* word) {
     const char* ptr = line;
     size_t word_len = strlen(word);
     
-    while ((ptr = strstr(ptr, word)) != NULL) {
+    while ((ptr = strstr(ptr, word)) != NULL) { 
         // Check if this is a whole word match
-        int is_start = (ptr == line) || is_word_boundary(*(ptr - 1));
-        int is_end = is_word_boundary(ptr[word_len]);
+        int is_start = (ptr == line) || find_word_boundary(*(ptr - 1));
+        int is_end = find_word_boundary(ptr[word_len]);
         
         if (is_start && is_end) {
             return 1;
@@ -77,7 +77,7 @@ int letter_counter_map(DATA_SPLIT * split, int fd_out)
     }
     
     if (bytes_read < 0) {
-        return ERROR;
+        return -1;
     }
     
     // Write counts to intermediate file
@@ -85,13 +85,13 @@ int letter_counter_map(DATA_SPLIT * split, int fd_out)
     for (int i = 0; i < 26; i++) {
         snprintf(output_line, sizeof(output_line), "%c %d\n", 'A' + i, letter_counts[i]);
         if (write(fd_out, output_line, strlen(output_line)) < 0) {
-            return ERROR;
+            return -1;
         }
     }
     
-    return SUCCESS;
+    // return SUCCESS;
     
-    // return 0;
+    return 0;
 }
 
 /* User-defined reduce function for the "Letter counter" task.  
@@ -146,13 +146,13 @@ int letter_counter_reduce(int * p_fd_in, int fd_in_num, int fd_out)
     for (int i = 0; i < 26; i++) {
         snprintf(output_line, sizeof(output_line), "%c %d\n", 'A' + i, total_counts[i]);
         if (write(fd_out, output_line, strlen(output_line)) < 0) {
-            return ERROR;
+            return -1;
         }
     }
     
-    return SUCCESS;
+    // return SUCCESS;
     
-    // return 0;
+    return 0;
 }
 
 /* User-defined map function for the "Word finder" task.  
@@ -174,7 +174,7 @@ int word_finder_map(DATA_SPLIT * split, int fd_out)
     size_t remaining = split->size;
     
     if (!line) {
-        return ERROR;
+        return -1;
     }
     
     // Read the split data in chunks
@@ -185,7 +185,7 @@ int word_finder_map(DATA_SPLIT * split, int fd_out)
             if (pos >= MAX_LINE_LENGTH - 1) {
                 // Line too long, process what we have
                 line[pos] = '\0';
-                if (has_exact_word(line, word_to_find)) {
+                if (find_word(line, word_to_find)) {
                     write(fd_out, line, pos);
                     write(fd_out, "\n", 1);
                 }
@@ -195,7 +195,7 @@ int word_finder_map(DATA_SPLIT * split, int fd_out)
             if (buffer[i] == '\n') {
                 // End of line found
                 line[pos] = '\0';
-                if (has_exact_word(line, word_to_find)) {
+                if (find_word(line, word_to_find)) {
                     write(fd_out, line, pos);
                     write(fd_out, "\n", 1);
                 }
@@ -211,14 +211,14 @@ int word_finder_map(DATA_SPLIT * split, int fd_out)
     // Process last line if it exists
     if (pos > 0) {
         line[pos] = '\0';
-        if (has_exact_word(line, word_to_find)) {
+        if (find_word(line, word_to_find)) {
             write(fd_out, line, pos);
             write(fd_out, "\n", 1);
         }
     }
     
     free(line);
-    return (bytes_read < 0) ? ERROR : SUCCESS;
+    return (bytes_read < 0) ? -1 : 0;
     
     // return 0;
 }
@@ -246,7 +246,7 @@ int word_finder_reduce(int * p_fd_in, int fd_in_num, int fd_out)
     if (!current_line || !seen_lines) {
         free(current_line);
         free(seen_lines);
-        return ERROR;
+        return -1;
     }
     
     // Process each intermediate file
@@ -297,9 +297,9 @@ int word_finder_reduce(int * p_fd_in, int fd_in_num, int fd_out)
     }
     free(seen_lines);
     
-    return SUCCESS;
+    // return SUCCESS;
     
-    // return 0;
+    return 0;
 }
 
 
