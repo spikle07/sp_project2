@@ -116,10 +116,7 @@ int letter_counter_reduce(int * p_fd_in, int fd_in_num, int fd_out)
     
     // Process each intermediate file
     for (int i = 0; i < fd_in_num; i++) {
-        // Reset file pointer to start
         lseek(p_fd_in[i], 0, SEEK_SET);
-        
-        // Read line by line
         ssize_t bytes_read;
         char line_buffer[32];
         int pos = 0;
@@ -240,7 +237,7 @@ int word_finder_reduce(int * p_fd_in, int fd_in_num, int fd_out)
     // add your implementation here ...
     char buffer[BUFFER_SIZE];
     char *current_line = malloc(MAX_LINE_LENGTH);
-    char **seen_lines = malloc(sizeof(char *) * 1024);  // Dynamic array for seen lines
+    char **seen_lines = malloc(sizeof(char *) * 1024);  
     int seen_count = 0;
     
     if (!current_line || !seen_lines) {
@@ -271,7 +268,6 @@ int word_finder_reduce(int * p_fd_in, int fd_in_num, int fd_out)
                     
                     // If not a duplicate and line is not empty
                     if (!is_duplicate && pos > 0) {
-                        // Add to seen lines
                         if (seen_count < 1024) {
                             seen_lines[seen_count] = strdup(current_line);
                             seen_count++;
