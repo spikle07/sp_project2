@@ -20,23 +20,45 @@
 #define BUFFER_SIZE 4096
 
 // Helper function to check if a character is a word boundary
-static int find_word_boundary(char c) {
-    return c == ' ' || c == '\t' || c == '\n' || c == '\r' || 
-           c == '.' || c == ',' || c == ';' || c == '!' || 
-           c == '?' || c == '"' || c == '\'' || c == '(' || 
-           c == ')' || c == '[' || c == ']' || c == '{' || 
-           c == '}' || c == '-' || c == ':' || c == '\0';
+// static int word_boundary(char c) {
+//     return c == ' ' || c == '\t' || c == '\n' || c == '\r' || 
+//            c == '.' || c == ',' || c == ';' || c == '!' || 
+//            c == '?' || c == '"' || c == '\'' || c == '(' || 
+//            c == ')' || c == '[' || c == ']' || c == '{' || 
+//            c == '}' || c == '-' || c == ':' || c == '\0';
+// }
+
+// // Helper function to find exact word match
+// static int find_word(const char* line, const char* word) {
+//     const char* ptr = line;
+//     size_t word_len = strlen(word);
+    
+//     while ((ptr = strstr(ptr, word)) != NULL) { 
+//         // Check if this is a whole word match
+//         int is_start = (ptr == line) || word_boundary(*(ptr - 1));
+//         int is_end = word_boundary(ptr[word_len]);
+        
+//         if (is_start && is_end) {
+//             return 1;
+//         }
+//         ptr++;
+//     }
+//     return 0;
+// }
+
+// word boundary defined as per brightspace announcement 
+static int word_boundary(char c) {
+    return c == ',' || c == '.' || c == ' ' || c == '\n' || c == '\0';
 }
 
-// Helper function to find exact word match
+// Helper function to find  word match
 static int find_word(const char* line, const char* word) {
     const char* ptr = line;
     size_t word_len = strlen(word);
     
-    while ((ptr = strstr(ptr, word)) != NULL) { 
-        // Check if this is a whole word match
-        int is_start = (ptr == line) || find_word_boundary(*(ptr - 1));
-        int is_end = find_word_boundary(ptr[word_len]);
+    while ((ptr = strstr(ptr, word)) != NULL) {
+        int is_start = (ptr == line) || word_boundary(*(ptr - 1));
+        int is_end = (*(ptr + word_len) == '\0') || word_boundary(*(ptr + word_len));
         
         if (is_start && is_end) {
             return 1;
@@ -180,7 +202,7 @@ int word_finder_map(DATA_SPLIT * split, int fd_out)
         
         for (ssize_t i = 0; i < bytes_read; i++) {
             if (pos >= MAX_LINE_LENGTH - 1) {
-                // Line too long, process what we have
+                // Line too long
                 line[pos] = '\0';
                 if (find_word(line, word_to_find)) {
                     write(fd_out, line, pos);
@@ -257,7 +279,6 @@ int word_finder_reduce(int * p_fd_in, int fd_in_num, int fd_out)
                 if (buffer[j] == '\n' || pos >= MAX_LINE_LENGTH - 1) {
                     current_line[pos] = '\0';
                     
-                    // Check if we've seen this line before
                     int is_duplicate = 0;
                     for (int k = 0; k < seen_count; k++) {
                         if (strcmp(seen_lines[k], current_line) == 0) {
